@@ -372,9 +372,17 @@
       if (!$('#label').value && bestRelease['label-info']?.[0]?.label?.name) {
         $('#label').value = bestRelease['label-info'][0].label.name;
       }
-      if (!$('#genre').value) {
-        const tag = bestRelease.tags?.[0]?.name || bestRelease['release-group']?.tags?.[0]?.name || '';
-        if (tag) $('#genre').value = tag;
+      if (!$('#genre').value && bestRelease['release-group']?.id) {
+        try {
+          const rgRes = await fetch(`https://musicbrainz.org/ws/2/release-group/${bestRelease['release-group'].id}?inc=tags&fmt=json`, {
+            headers: { 'User-Agent': 'VinylShelfApp/1.0 (hanghc89@github.io)' }
+          });
+          if (rgRes.ok) {
+            const rgData = await rgRes.json();
+            const tag = rgData.tags?.sort((a,b) => b.count - a.count)?.[0]?.name || '';
+            if (tag) $('#genre').value = tag.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          }
+        } catch {}
       }
       saveDraft();
       showToast('封面、年份、廠牌已帶入！記得按「儲存唱片」。');
