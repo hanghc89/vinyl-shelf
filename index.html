@@ -335,33 +335,66 @@
     $('#dockTop').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 
     async function searchDiscogs() {
-      const artist = $('#artist').value.trim();
-      const title = $('#title').value.trim();
-      const custom = $('#discogsQuery').value.trim();
-      const query = custom || [artist, title].filter(Boolean).join(' - ');
-      if (!query) { showToast('請先填歌手名或專輯名。', true); return; }
-      const url = `https://api.discogs.com/database/search?q=${encodeURIComponent(query)}&type=release&per_page=10`;
-      try {
-        showToast('Discogs 搜尋中...');
-        const res = await fetch(url, { headers: { 'User-Agent': 'VinylShelfApp/1.0 +https://example.com' } });
-        if (!res.ok) throw new Error('search failed');
-        const data = await res.json();
-        const results = Array.isArray(data.results) ? data.results : [];
-        const best = results.find(r => r.cover_image || r.thumb) || results[0];
-        if (!best) { showToast('搵唔到相近 Discogs 結果。', true); return; }
-        const cover = best.cover_image || best.thumb || '';
-        const link = best.master_url ? best.master_url.replace('api.discogs.com/masters', 'www.discogs.com/master') : (best.resource_url ? best.resource_url.replace('api.discogs.com/releases', 'www.discogs.com/release') : '');
-        if (cover) { $('#coverUrl').value = cover; state.draftCover = cover; renderPreview(); saveDraft(); }
-        if (link) $('#discogsUrl').value = link;
-        if (!$('#year').value && best.year) $('#year').value = String(best.year);
-        if (!$('#genre').value && Array.isArray(best.genre) && best.genre[0]) $('#genre').value = best.genre[0];
-        if (!$('#label').value && Array.isArray(best.label) && best.label[0]) $('#label').value = best.label[0];
-        saveDraft();
-        showToast('已從 Discogs 帶入封面同基本資料；記得再按「儲存唱片」。');
-      } catch (err) {
-        showToast('Discogs 搜尋失敗，可能被瀏覽器或網絡限制。你可改用手機揀圖，或者貼入圖片網址。', true);
-      }
+  const artist = $('#artist').value.trim();
+  const title = $('#title').value.trim();
+  const custom = $('#discogsQuery').value.trim();
+  const query = custom || [artist, title].filter(Boolean).join(' ');
+
+  if (!query) {
+    showToast('請先填歌手名或專輯名。', true);
+    return;
+  }
+
+  try {
+    showToast('搜尋封面中...');
+
+    // Step 1: MusicBrainz search
+    const mbUrl = `https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(query)}&limit=5&fmt=json`;
+    const mbRes = await fetch(mbUrl, {
+      headers: { 'User-Agent': 'VinylShelfApp/1.0 (hanghc89@github.io)' }
+    });
+    if (!mbRes.ok) throw new Error('MusicBrainz search failed');
+    const mbData = await mbRes.json();
+    const releases = mbData.releases || [];
+
+    if (!releases.length) {
+      showToast('搵唔到相近結果。', true);
+      return;
     }
+
+    // Step 2: Try Cover Art Archive for each release until we get a cover
+    let cover = '';
+    for (const release of releases) {
+      try {
+        const caUrl = `https://coverartarchive.org/release/${release.id}`;
+        const caRes = await fetch(caUrl);
+        if (!caRes.ok) continue;
+        const caData = await caRes.json();
+        const front = caData.images?.find(img => img.front) || caData.images?.[0];
+        if (front?.image) {
+          cover = front.image;
+          break;
+        }
+      } catch {}
+    }
+
+    if (!cover) {
+      showToast('搵唔到封面圖，可以手動貼圖片網址。', true);
+      return;
+    }
+
+    $('#coverUrl').value = cover;
+    state.draftCover = cover;
+    renderPreview();
+    saveDraft();
+    showToast('封面已帶入！');
+
+  } catch (err) {
+    showToast('搜尋失敗，請稍後再試。', true);
+  }
+
+  // prevent original function body from running - return early above
+  return;
     $('#discogsBtn').addEventListener('click', searchDiscogs);
 
     (function(){ const t=document.querySelector('[data-theme-toggle]'),r=document.documentElement; let d=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'; r.setAttribute('data-theme',d); t.textContent=d==='dark'?'☀️':'🌙'; t.addEventListener('click',()=>{d=d==='dark'?'light':'dark';r.setAttribute('data-theme',d);t.textContent=d==='dark'?'☀️':'🌙';}); })();
