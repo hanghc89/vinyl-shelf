@@ -358,12 +358,26 @@
           if (front?.image) { cover = front.image; break; }
         } catch {}
       }
-      if (!cover) { showToast('搵唔到封面，可以手動貼圖片網址。', true); return; }
+       if (!cover) { showToast('搵唔到封面，可以手動貼圖片網址。', true); return; }
       $('#coverUrl').value = cover;
       state.draftCover = cover;
       renderPreview();
       saveDraft();
-      showToast('封面已帶入！記得按「儲存唱片」。');
+
+      // 填入年份、廠牌、風格
+      const bestRelease = releases[0];
+      if (!$('#year').value && bestRelease.date) {
+        $('#year').value = bestRelease.date.substring(0, 4);
+      }
+      if (!$('#label').value && bestRelease['label-info']?.[0]?.label?.name) {
+        $('#label').value = bestRelease['label-info'][0].label.name;
+      }
+      if (!$('#genre').value) {
+        const tag = bestRelease.tags?.[0]?.name || bestRelease['release-group']?.tags?.[0]?.name || '';
+        if (tag) $('#genre').value = tag;
+      }
+      saveDraft();
+      showToast('封面、年份、廠牌已帶入！記得按「儲存唱片」。');
     } catch (err) {
       showToast('搜尋失敗，請稍後再試。', true);
     }
